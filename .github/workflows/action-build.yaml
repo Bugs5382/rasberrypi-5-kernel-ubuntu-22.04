@@ -6,7 +6,7 @@ on:
 
 jobs:
   Build-and-Inject:
-    runs-on: self-hosted
+    runs-on: arc-runner-set
     permissions: write-all
     steps:
       - name: Install required packages
