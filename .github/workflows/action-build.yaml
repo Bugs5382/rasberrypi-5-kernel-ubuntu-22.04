@@ -16,7 +16,7 @@ jobs:
             qemu-user-static binfmt-support \
             kpartx mount unzip bc bison flex libssl-dev \
             make gcc-aarch64-linux-gnu u-boot-tools device-tree-compiler \
-            rsync util-linux wget xz-utils git
+            rsync util-linux wget xz-utils git libguestfs-tools
 
       - name: Download Ubuntu 22.04.2 Raspberry Pi image
         run: |
@@ -24,26 +24,11 @@ jobs:
             https://cdimage.ubuntu.com/releases/24.04.2/release/ubuntu-24.04.2-preinstalled-server-arm64+raspi.img.xz
           unxz ubuntu-22.04.2-raspi.img.xz
 
-      - name: Clean up existing loop devices
+      - name: Mount
         run: |
-          sudo losetup -D
-
-      - name: Setup loop devices and mount image partitions
-        id: mount_image
-        run: |
-          # Get partition offsets
-          PART1_OFFSET=$(fdisk -l ubuntu-22.04.2-raspi.img | grep img1 | awk '{print $2}')
-          PART2_OFFSET=$(fdisk -l ubuntu-22.04.2-raspi.img | grep img2 | awk '{print $2}')
-          SECTOR_SIZE=$(fdisk -l ubuntu-22.04.2-raspi.img | grep "Units" | awk '{print $8}')
-          
-          # Calculate byte offsets
-          OFFSET1=$((PART1_OFFSET * SECTOR_SIZE))
-          OFFSET2=$((PART2_OFFSET * SECTOR_SIZE))
-          
-          # Mount partitions directly using offsets
-          sudo mkdir -p /mnt/rpi-boot /mnt/rpi-rootfs
-          sudo mount -o loop,offset=$OFFSET1 ubuntu-22.04.2-raspi.img /mnt/rpi-boot
-          sudo mount -o loop,offset=$OFFSET2 ubuntu-22.04.2-raspi.img /mnt/rpi-rootfs
+          mkdir -p /mnt/rpi-boot /mnt/rpi-rootfs
+          guestmount -a ubuntu-22.04.2-raspi.img -m /dev/sda1 /mnt/rpi-boot
+          guestmount -a ubuntu-22.04.2-raspi.img -m /dev/sda2 /mnt/rpi-rootfs
 
       - name: Clone Linux Kernel v6.6.51
         run: |
@@ -75,9 +60,8 @@ jobs:
 
       - name: Unmount partitions and detach loop devices
         run: |
-          sudo umount /mnt/rpi-boot
-          sudo umount /mnt/rpi-rootfs
-          sudo losetup -d ${{ env.LOOP_DEV }}
+          guestunmount /mnt/rpi-boot
+          guestunmount /mnt/rpi-rootfs
 
       - name: Upload modified image
         uses: actions/upload-artifact@v4
