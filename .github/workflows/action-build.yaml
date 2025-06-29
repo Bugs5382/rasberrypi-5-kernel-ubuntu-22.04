@@ -31,15 +31,19 @@ jobs:
       - name: Setup loop devices and mount image partitions
         id: mount_image
         run: |
-          sudo losetup -fP ubuntu-22.04.2-raspi.img
-          LOOP_DEV=$(losetup -j ubuntu-22.04.2-raspi.img | cut -d':' -f1)
-          echo "LOOP_DEV=$LOOP_DEV" >> $GITHUB_ENV
-
-          sudo mkdir -p /mnt/rpi-rootfs
-          sudo mkdir -p /mnt/rpi-boot
-
-          sudo mount "${LOOP_DEV}p2" /mnt/rpi-rootfs
-          sudo mount "${LOOP_DEV}p1" /mnt/rpi-boot
+          # Get partition offsets
+          PART1_OFFSET=$(fdisk -l ubuntu-22.04.2-raspi.img | grep img1 | awk '{print $2}')
+          PART2_OFFSET=$(fdisk -l ubuntu-22.04.2-raspi.img | grep img2 | awk '{print $2}')
+          SECTOR_SIZE=$(fdisk -l ubuntu-22.04.2-raspi.img | grep "Units" | awk '{print $8}')
+          
+          # Calculate byte offsets
+          OFFSET1=$((PART1_OFFSET * SECTOR_SIZE))
+          OFFSET2=$((PART2_OFFSET * SECTOR_SIZE))
+          
+          # Mount partitions directly using offsets
+          sudo mkdir -p /mnt/rpi-boot /mnt/rpi-rootfs
+          sudo mount -o loop,offset=$OFFSET1 ubuntu-22.04.2-raspi.img /mnt/rpi-boot
+          sudo mount -o loop,offset=$OFFSET2 ubuntu-22.04.2-raspi.img /mnt/rpi-rootfs
 
       - name: Clone Linux Kernel v6.6.51
         run: |
