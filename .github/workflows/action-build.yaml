@@ -1,0 +1,78 @@
+name: Build & Inject Kernel into Ubuntu 22.04.2 Raspberry Pi Image
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+jobs:
+  Build-and-Inject:
+    runs-on: self-hosted
+    permissions: write-all
+    steps:
+      - name: Install required packages
+        run: |
+          sudo apt update
+          sudo apt install -y \
+            qemu-user-static binfmt-support \
+            kpartx losetup mount unzip bc bison flex libssl-dev \
+            make gcc-aarch64-linux-gnu u-boot-tools device-tree-compiler rsync
+
+      - name: Download Ubuntu 22.04.2 Raspberry Pi image
+        run: |
+          wget -O ubuntu-22.04.2-raspi.img.xz \
+            https://ubuntu.com/download/raspberry-pi/thank-you?version=24.04.2&architecture=server-arm64+raspi
+          unxz ubuntu-22.04.2-raspi.img.xz
+
+      - name: Setup loop devices and mount image partitions
+        id: mount_image
+        run: |
+          sudo losetup -fP ubuntu-22.04.2-raspi.img
+          LOOP_DEV=$(losetup -j ubuntu-22.04.2-raspi.img | cut -d':' -f1)
+          echo "LOOP_DEV=$LOOP_DEV" >> $GITHUB_ENV
+
+          sudo mkdir -p /mnt/rpi-rootfs
+          sudo mkdir -p /mnt/rpi-boot
+
+          sudo mount "${LOOP_DEV}p2" /mnt/rpi-rootfs
+          sudo mount "${LOOP_DEV}p1" /mnt/rpi-boot
+
+      - name: Clone Linux Kernel v6.6.51
+        run: |
+          git clone --depth=1 --branch linux-6.6.y https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git
+          cd linux
+          export ARCH=arm64
+          export CROSS_COMPILE=aarch64-linux-gnu-
+          make bcm2711_defconfig
+          make -j$(nproc) Image modules dtbs
+
+      - name: Install Kernel Modules to mounted rootfs
+        run: |
+          cd linux
+          sudo make INSTALL_MOD_PATH=/mnt/rpi-rootfs modules_install
+
+      - name: Copy kernel and dtbs to boot partition
+        run: |
+          cd linux
+          sudo cp arch/arm64/boot/Image /mnt/rpi-boot/vmlinuz-6.6.51
+          sudo cp arch/arm64/boot/dts/broadcom/*.dtb /mnt/rpi-boot/
+          sudo cp -r arch/arm64/boot/dts/broadcom/overlays /mnt/rpi-boot/
+
+      - name: Update boot config.txt to load new kernel
+        run: |
+          sudo bash -c "cat >> /mnt/rpi-boot/config.txt" << EOF
+
+# Custom kernel 6.6.51
+  kernel=vmlinuz-6.6.51
+  EOF
+
+- name: Unmount partitions and detach loop devices
+  run: |
+    sudo umount /mnt/rpi-boot
+    sudo umount /mnt/rpi-rootfs
+    sudo losetup -d ${{ env.LOOP_DEV }}
+
+- name: Upload modified image
+  uses: actions/upload-artifact@v4
+  with:
+    name: ubuntu-22.04.2-raspi-custom-kernel.img
+    path: ubuntu-22.04.2-raspi.img
