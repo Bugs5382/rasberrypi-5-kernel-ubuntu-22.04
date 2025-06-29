@@ -27,7 +27,6 @@ jobs:
       - name: Clean up existing loop devices
         run: |
           sudo losetup -D
-          sudo modprobe loop max_loop=256
 
       - name: Setup loop devices and mount image partitions
         id: mount_image
