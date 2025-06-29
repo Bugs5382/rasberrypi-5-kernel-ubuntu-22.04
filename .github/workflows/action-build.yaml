@@ -15,7 +15,8 @@ jobs:
           sudo apt install -y \
             qemu-user-static binfmt-support \
             kpartx mount unzip bc bison flex libssl-dev \
-            make gcc-aarch64-linux-gnu u-boot-tools device-tree-compiler rsync util-linux wget
+            make gcc-aarch64-linux-gnu u-boot-tools device-tree-compiler \
+            rsync util-linux wget xz-utils git
 
       - name: Download Ubuntu 22.04.2 Raspberry Pi image
         run: |
