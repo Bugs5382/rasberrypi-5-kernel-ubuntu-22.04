@@ -24,6 +24,11 @@ jobs:
             https://cdimage.ubuntu.com/releases/24.04.2/release/ubuntu-24.04.2-preinstalled-server-arm64+raspi.img.xz
           unxz ubuntu-22.04.2-raspi.img.xz
 
+      - name: Clean up existing loop devices
+        run: |
+          sudo losetup -D
+          sudo modprobe loop max_loop=256
+
       - name: Setup loop devices and mount image partitions
         id: mount_image
         run: |
