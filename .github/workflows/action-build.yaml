@@ -59,20 +59,19 @@ jobs:
 
       - name: Update boot config.txt to load new kernel
         run: |
-          sudo bash -c "cat >> /mnt/rpi-boot/config.txt" << EOF
+          sudo bash -c 'cat <<EOF >> /mnt/rpi-boot/config.txt
+            # Custom kernel 6.6.51
+              kernel=vmlinuz-6.6.51
+              EOF'
 
-# Custom kernel 6.6.51
-  kernel=vmlinuz-6.6.51
-  EOF
+      - name: Unmount partitions and detach loop devices
+        run: |
+          sudo umount /mnt/rpi-boot
+          sudo umount /mnt/rpi-rootfs
+          sudo losetup -d ${{ env.LOOP_DEV }}
 
-- name: Unmount partitions and detach loop devices
-  run: |
-    sudo umount /mnt/rpi-boot
-    sudo umount /mnt/rpi-rootfs
-    sudo losetup -d ${{ env.LOOP_DEV }}
-
-- name: Upload modified image
-  uses: actions/upload-artifact@v4
-  with:
-    name: ubuntu-22.04.2-raspi-custom-kernel.img
-    path: ubuntu-22.04.2-raspi.img
+      - name: Upload modified image
+        uses: actions/upload-artifact@v4
+        with:
+          name: ubuntu-22.04.2-raspi-custom-kernel.img
+          path: ubuntu-22.04.2-raspi.img
