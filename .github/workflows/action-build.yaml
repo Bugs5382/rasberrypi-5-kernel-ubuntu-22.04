@@ -20,7 +20,7 @@ jobs:
       - name: Download Ubuntu 22.04.2 Raspberry Pi image
         run: |
           wget -O ubuntu-22.04.2-raspi.img.xz \
-            https://ubuntu.com/download/raspberry-pi/thank-you?version=24.04.2&architecture=server-arm64+raspi
+            https://cdimage.ubuntu.com/releases/24.04.2/release/ubuntu-24.04.2-preinstalled-server-arm64+raspi.img.xz
           unxz ubuntu-22.04.2-raspi.img.xz
 
       - name: Setup loop devices and mount image partitions
