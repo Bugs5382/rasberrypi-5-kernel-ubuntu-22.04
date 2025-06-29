@@ -32,7 +32,7 @@ jobs:
 
       - name: Clone Linux Kernel v6.6.51
         run: |
-          git clone --depth=1 --branch linux-6.6.y https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git
+          git clone --depth=1 --branch rpi-6.6.y https://github.com/raspberrypi/linux.git
           cd linux
           export ARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
