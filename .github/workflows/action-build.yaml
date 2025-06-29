@@ -26,7 +26,7 @@ jobs:
 
       - name: Mount
         run: |
-          mkdir -p /mnt/rpi-boot /mnt/rpi-rootfs
+          sudo mkdir -p /mnt/rpi-boot /mnt/rpi-rootfs
           guestmount -a ubuntu-22.04.2-raspi.img -m /dev/sda1 /mnt/rpi-boot
           guestmount -a ubuntu-22.04.2-raspi.img -m /dev/sda2 /mnt/rpi-rootfs
 
