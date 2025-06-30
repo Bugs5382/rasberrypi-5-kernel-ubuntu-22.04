@@ -56,13 +56,18 @@ jobs:
           sudo make modules_install
 
       - name: Prepare kernel artifacts for upload
+        id: kernel_info
         run: |
+          cd linux
+          KERNEL_VERSION=$(make -s kernelversion)
+          cd ..
           mkdir -p kernel-artifacts
-          cp linux/arch/arm64/boot/Image kernel-artifacts/vmlinuz-6.6.51
+          cp linux/arch/arm64/boot/Image kernel-artifacts/vmlinuz-${KERNEL_VERSION}
           cp linux/arch/arm64/boot/dts/broadcom/bcm2712*.dtb kernel-artifacts/
           if [ -d linux/arch/arm64/boot/dts/overlays ]; then
             cp -r linux/arch/arm64/boot/dts/overlays kernel-artifacts/
           fi
+          echo "kernel_version=$KERNEL_VERSION" >> $GITHUB_OUTPUT
 
       - name: Upload kernel build artifacts
         uses: actions/upload-artifact@v4
@@ -136,4 +141,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ubuntu-rpi-patched.img
-          path: ./image/ubuntu-22.04.2-raspi.img
+          path: ./image/ubuntu-22.04.2-raspi-${{ steps.kernel_info.outputs.kernel_version }}.img
