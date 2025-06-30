@@ -98,14 +98,24 @@ jobs:
       - name: Get boot partition start sector and size
         id: partition_info
         run: |
-          # List partitions of the image and extract info for partition 1 (boot)
           PART_INFO=$(fdisk -l ./image/ubuntu-22.04.2-raspi.img | grep "^./image/ubuntu-22.04.2-raspi.img1")
-          # fallback if grep doesn't work, parse by partition number
           if [ -z "$PART_INFO" ]; then
             PART_INFO=$(fdisk -l ./image/ubuntu-22.04.2-raspi.img | grep " 1 ")
           fi
           echo "Partition info: $PART_INFO"
-          # Extract start sector (2nd column) and sector count (4th column)
+          START_SECTOR=$(echo $PART_INFO | awk '{print $4}')
+          SECTORS=$(echo $PART_INFO | awk '{print $6}')
+          echo "start_sector=$START_SECTOR" >> $GITHUB_OUTPUT
+          echo "sectors=$SECTORS" >> $GITHUB_OUTPUT
+
+      - name: Get root partition start sector and size
+        id: partition_info_two
+        run: |
+          PART_INFO=$(fdisk -l ./image/ubuntu-22.04.2-raspi.img | grep "^./image/ubuntu-22.04.2-raspi.img2")
+          if [ -z "$PART_INFO" ]; then
+            PART_INFO=$(fdisk -l ./image/ubuntu-22.04.2-raspi.img | grep " 2 ")
+          fi
+          echo "Partition info: $PART_INFO"
           START_SECTOR=$(echo $PART_INFO | awk '{print $4}')
           SECTORS=$(echo $PART_INFO | awk '{print $6}')
           echo "start_sector=$START_SECTOR" >> $GITHUB_OUTPUT
@@ -121,16 +131,16 @@ jobs:
 
       - name: Copy custom kernel files to boot partition image
         run: |
-          mcopy -i boot-partition.img ./kernel-build-output/vmlinuz-6.6.51 p:/
+          mcopy -i boot-partition.img ./kernel-build-output/vmlinuz-${{ steps.kernel_info.outputs.kernel_version }} p:/
           # Optionally, copy initrd if exists:
-          if [ -f ./kernel-build-output/initrd.img-6.6.51 ]; then
-            mcopy -i boot-partition.img ./kernel-build-output/initrd.img-6.6.51 p:/
+          if [ -f ./kernel-build-output/initrd.img-${{ steps.kernel_info.outputs.kernel_version }} ]; then
+            mcopy -i boot-partition.img ./kernel-build-output/initrd.img-${{ steps.kernel_info.outputs.kernel_version }} p:/
           fi
 
       - name: Update config.txt in boot partition
         run: |
           mcopy -i boot-partition.img p:/config.txt .
-          grep -q '^kernel=vmlinuz-6.6.51$' config.txt || echo "kernel=vmlinuz-6.6.51" >> config.txt
+          grep -q '^kernel=vmlinuz-${{ steps.kernel_info.outputs.kernel_version }}$' config.txt || echo "kernel=vmlinuz-${{ steps.kernel_info.outputs.kernel_version }}" >> config.txt
           mcopy -o -i boot-partition.img config.txt p:/
 
       - name: Inject patched boot partition back into main image
