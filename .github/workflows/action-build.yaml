@@ -9,6 +9,12 @@ jobs:
     runs-on: arc-runner-set
     permissions: write-all
     steps:
+      - name: Install required packages
+        run: |
+          sudo apt update
+          sudo apt install -y \
+            wget xz-utils curl
+
       - name: Download Ubuntu 22.04.2 Raspberry Pi image
         run: |
           wget -O ubuntu-22.04.2-raspi.img.xz \
