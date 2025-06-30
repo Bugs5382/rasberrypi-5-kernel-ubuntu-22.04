@@ -41,7 +41,7 @@ jobs:
             make gcc-aarch64-linux-gnu u-boot-tools device-tree-compiler \
             rsync util-linux wget xz-utils git libguestfs-tools qemu-utils openssl curl
 
-      - name: Clone Linux Kernel v6.6.51
+      - name: Clone Linux Kernel v6.6.y & Compile
         run: |
           git clone --depth=1 --branch rpi-6.6.y https://github.com/raspberrypi/linux.git
           cd linux
