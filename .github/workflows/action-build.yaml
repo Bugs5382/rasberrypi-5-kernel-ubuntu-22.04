@@ -39,7 +39,7 @@ jobs:
             qemu-user-static binfmt-support \
             kpartx mount unzip bc bison flex libssl-dev \
             make gcc-aarch64-linux-gnu u-boot-tools device-tree-compiler \
-            rsync util-linux wget xz-utils git libguestfs-tools qemu-utils
+            rsync util-linux wget xz-utils git libguestfs-tools qemu-utils openssl curl
 
       - name: Clone Linux Kernel v6.6.51
         run: |
