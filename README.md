@@ -5,5 +5,5 @@ This project provides a custom Ubuntu 22.04.2 build (or newer) for the **Raspber
 ## ✅ Features
 
 * Raspberry Pi 5 support (64-bit ARM)
-* Ubuntu Server 22.04.2 LTS base image
-* Linux Kernel 6.6.51 (custom-compiled)
+* Raspberry Ubuntu Server 22.04.2 LTS base image
+* Raspberry Linux Kernel 6.6.y

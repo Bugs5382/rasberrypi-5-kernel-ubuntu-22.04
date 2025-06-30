@@ -5,8 +5,25 @@ on:
   workflow_call:
 
 jobs:
-  Build-and-Inject:
+  Download:
     runs-on: arc-runner-set
+    permissions: write-all
+    steps:
+      - name: Download Ubuntu 22.04.2 Raspberry Pi image
+        run: |
+          wget -O ubuntu-22.04.2-raspi.img.xz \
+            https://cdimage.ubuntu.com/releases/24.04.2/release/ubuntu-24.04.2-preinstalled-server-arm64+raspi.img.xz
+          unxz ubuntu-22.04.2-raspi.img.xz
+
+      - name: Upload Raspberry Pi image artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ubuntu-raspi-image
+          path: ubuntu-22.04.2-raspi.img
+
+  Build:
+    runs-on: arc-runner-set
+    needs: Download
     permissions: write-all
     steps:
       - name: Install required packages
@@ -16,19 +33,7 @@ jobs:
             qemu-user-static binfmt-support \
             kpartx mount unzip bc bison flex libssl-dev \
             make gcc-aarch64-linux-gnu u-boot-tools device-tree-compiler \
-            rsync util-linux wget xz-utils git libguestfs-tools
-
-      - name: Download Ubuntu 22.04.2 Raspberry Pi image
-        run: |
-          wget -O ubuntu-22.04.2-raspi.img.xz \
-            https://cdimage.ubuntu.com/releases/24.04.2/release/ubuntu-24.04.2-preinstalled-server-arm64+raspi.img.xz
-          unxz ubuntu-22.04.2-raspi.img.xz
-
-      - name: Mount
-        run: |
-          sudo mkdir -p /mnt/rpi-boot /mnt/rpi-rootfs
-          guestmount -a ubuntu-22.04.2-raspi.img -m /dev/sda1 /mnt/rpi-boot
-          guestmount -a ubuntu-22.04.2-raspi.img -m /dev/sda2 /mnt/rpi-rootfs
+            rsync util-linux wget xz-utils git libguestfs-tools qemu-utils
 
       - name: Clone Linux Kernel v6.6.51
         run: |
@@ -39,32 +44,88 @@ jobs:
           make bcm2711_defconfig
           make -j$(nproc) Image modules dtbs
 
-      - name: Install Kernel Modules to mounted rootfs
+      - name: Install Kernel Modules
         run: |
           cd linux
-          sudo make INSTALL_MOD_PATH=/mnt/rpi-rootfs modules_install
+          sudo make modules_install
 
-      - name: Copy kernel and dtbs to boot partition
+      - name: Prepare kernel artifacts for upload
         run: |
-          cd linux
-          sudo cp arch/arm64/boot/Image /mnt/rpi-boot/vmlinuz-6.6.51
-          sudo cp arch/arm64/boot/dts/broadcom/*.dtb /mnt/rpi-boot/
-          sudo cp -r arch/arm64/boot/dts/broadcom/overlays /mnt/rpi-boot/
+          mkdir -p kernel-artifacts
+          cp linux/arch/arm64/boot/Image kernel-artifacts/vmlinuz-6.6.51
+          cp linux/arch/arm64/boot/dts/broadcom/*.dtb kernel-artifacts/
+          cp -r linux/arch/arm64/boot/dts/broadcom/overlays kernel-artifacts/
 
-      - name: Update boot config.txt to load new kernel
-        run: |
-          sudo bash -c 'cat <<EOF >> /mnt/rpi-boot/config.txt
-            # Custom kernel 6.6.51
-              kernel=vmlinuz-6.6.51
-              EOF'
-
-      - name: Unmount partitions and detach loop devices
-        run: |
-          guestunmount /mnt/rpi-boot
-          guestunmount /mnt/rpi-rootfs
-
-      - name: Upload modified image
+      - name: Upload kernel build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ubuntu-22.04.2-raspi-custom-kernel.img
-          path: ubuntu-22.04.2-raspi.img
+          name: kernel-artifacts
+          path: kernel-artifacts/
+
+  Inject:
+    runs-on: arc-runner-set
+    needs: Build
+    permissions: write-all
+    steps:
+      - name: Download Ubuntu Raspberry Pi image artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ubuntu-raspi-image
+          path: ./image
+
+      - name: Download kernel build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: kernel-artifacts
+          path: ./kernel-build-output
+
+      - name: Install mtools
+        run: sudo apt-get update && sudo apt-get install -y mtools
+
+      - name: Get boot partition start sector and size
+        id: partition_info
+        run: |
+          # List partitions of the image and extract info for partition 1 (boot)
+          PART_INFO=$(fdisk -l ./image/ubuntu-22.04.2-raspi.img | grep "^./image/ubuntu-22.04.2-raspi.img1")
+          # fallback if grep doesn't work, parse by partition number
+          if [ -z "$PART_INFO" ]; then
+            PART_INFO=$(fdisk -l ./image/ubuntu-22.04.2-raspi.img | grep " 1 ")
+          fi
+          echo "Partition info: $PART_INFO"
+          # Extract start sector (2nd column) and sector count (4th column)
+          START_SECTOR=$(echo $PART_INFO | awk '{print $2}')
+          SECTORS=$(echo $PART_INFO | awk '{print $4}')
+          echo "start_sector=$START_SECTOR" >> $GITHUB_OUTPUT
+          echo "sectors=$SECTORS" >> $GITHUB_OUTPUT
+
+      - name: Extract boot partition image
+        run: |
+          dd if=./image/ubuntu-22.04.2-raspi.img of=boot-partition.img bs=512 skip=${{ steps.partition_info.outputs.start_sector }} count=${{ steps.partition_info.outputs.sectors }}
+
+      - name: Configure mtools to access boot partition image
+        run: |
+          echo "drive p: file=\"$(pwd)/boot-partition.img\" partition=0" > ~/.mtoolsrc
+
+      - name: Copy custom kernel files to boot partition image
+        run: |
+          mcopy -i boot-partition.img ./kernel-build-output/vmlinuz-6.6.51 p:/
+          # Optionally, copy initrd if exists:
+          if [ -f ./kernel-build-output/initrd.img-6.6.51 ]; then
+            mcopy -i boot-partition.img ./kernel-build-output/initrd.img-6.6.51 p:/
+          fi
+
+      - name: Update config.txt in boot partition
+        run: |
+          mcopy -i boot-partition.img p:/config.txt .
+          grep -q '^kernel=vmlinuz-6.6.51$' config.txt || echo "kernel=vmlinuz-6.6.51" >> config.txt
+          mcopy -i boot-partition.img config.txt p:/
+
+      - name: Inject patched boot partition back into main image
+        run: |
+          dd if=boot-partition.img of=./image/ubuntu-22.04.2-raspi.img bs=512 seek=${{ steps.partition_info.outputs.start_sector }} count=${{ steps.partition_info.outputs.sectors }} conv=notrunc
+
+      - name: Upload patched Raspberry Pi image artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ubuntu-rpi-patched.img
+          path: ./image/ubuntu-22.04.2-raspi.img
