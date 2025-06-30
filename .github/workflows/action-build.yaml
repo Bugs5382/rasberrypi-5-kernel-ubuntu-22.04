@@ -101,8 +101,8 @@ jobs:
           fi
           echo "Partition info: $PART_INFO"
           # Extract start sector (2nd column) and sector count (4th column)
-          START_SECTOR=$(echo $PART_INFO | awk '{print $2}')
-          SECTORS=$(echo $PART_INFO | awk '{print $4}')
+          START_SECTOR=$(echo $PART_INFO | awk '{print $4}')
+          SECTORS=$(echo $PART_INFO | awk '{print $6}')
           echo "start_sector=$START_SECTOR" >> $GITHUB_OUTPUT
           echo "sectors=$SECTORS" >> $GITHUB_OUTPUT
 
@@ -126,7 +126,7 @@ jobs:
         run: |
           mcopy -i boot-partition.img p:/config.txt .
           grep -q '^kernel=vmlinuz-6.6.51$' config.txt || echo "kernel=vmlinuz-6.6.51" >> config.txt
-          mcopy -i boot-partition.img config.txt p:/
+          mcopy -o -i boot-partition.img config.txt p:/
 
       - name: Inject patched boot partition back into main image
         run: |
