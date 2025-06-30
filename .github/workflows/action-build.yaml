@@ -59,6 +59,10 @@ jobs:
         run: |
           mkdir -p kernel-artifacts
           cp linux/arch/arm64/boot/Image kernel-artifacts/vmlinuz-6.6.51
+          cp linux/arch/arm64/boot/dts/broadcom/bcm2712*.dtb kernel-artifacts/
+          if [ -d linux/arch/arm64/boot/dts/overlays ]; then
+            cp -r linux/arch/arm64/boot/dts/overlays kernel-artifacts/
+          fi
 
       - name: Upload kernel build artifacts
         uses: actions/upload-artifact@v4
