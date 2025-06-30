@@ -87,7 +87,7 @@ jobs:
           name: kernel-artifacts
           path: ./kernel-build-output
 
-      - name: Install mtools
+      - name: Install mtools and fdisk
         run: sudo apt-get update && sudo apt-get install -y mtools fdisk
 
       - name: Get boot partition start sector and size
