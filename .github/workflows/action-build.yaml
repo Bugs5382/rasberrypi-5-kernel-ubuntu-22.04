@@ -150,9 +150,23 @@ jobs:
       - name: Inject patched boot partition back into main image
         run: |
           dd if=boot-partition.img of=./image/ubuntu-22.04.2-raspi.img bs=512 seek=${{ steps.partition_info.outputs.start_sector }} count=${{ steps.partition_info.outputs.sectors }} conv=notrunc
-
-      - name: Upload patched Raspberry Pi image artifact
-        uses: actions/upload-artifact@v4
+          mv ./image/ubuntu-22.04.2-raspi.img ./image/ubuntu-22.04.2-raspi-${{ needs.build.outputs.kernel_version }}.img
+          
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
         with:
-          name: ubuntu-rpi-patched.img
-          path: ./image/ubuntu-22.04.2-raspi-${{ needs.build.outputs.kernel_version }}.img
+          tag_name: v${{ needs.build.outputs.kernel_version }}
+          name: "Ubuntu 22.04.2 RPi Image - Kernel v${{ needs.build.outputs.kernel_version }}"
+          body: "Patched Raspberry Pi image with kernel version v${{ needs.build.outputs.kernel_version }}"
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Upload Raspberry Pi image to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.build.outputs.kernel_version }}
+          files: ./image/ubuntu-22.04.2-raspi-${{ needs.build.outputs.kernel_version }}.img
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
