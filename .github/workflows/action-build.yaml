@@ -30,6 +30,8 @@ jobs:
   Build:
     runs-on: arc-runner-set
     needs: Download
+    outputs:
+      kernel_version: ${{ steps.kernel_info.outputs.kernel_version }}
     permissions: write-all
     steps:
       - name: Install required packages
@@ -131,16 +133,18 @@ jobs:
 
       - name: Copy custom kernel files to boot partition image
         run: |
-          mcopy -i boot-partition.img ./kernel-build-output/vmlinuz-${{ steps.kernel_info.outputs.kernel_version }} p:/
+          KERNEL_VERSION=${{ needs.build.outputs.kernel_version }}
+          mcopy -i boot-partition.img ./kernel-build-output/vmlinuz-$KERNEL_VERSION p:/
           # Optionally, copy initrd if exists:
-          if [ -f ./kernel-build-output/initrd.img-${{ steps.kernel_info.outputs.kernel_version }} ]; then
-            mcopy -i boot-partition.img ./kernel-build-output/initrd.img-${{ steps.kernel_info.outputs.kernel_version }} p:/
+          if [ -f ./kernel-build-output/initrd.img-$KERNEL_VERSION ]; then
+            mcopy -i boot-partition.img ./kernel-build-output/initrd.img-$KERNEL_VERSION p:/
           fi
 
       - name: Update config.txt in boot partition
         run: |
+          KERNEL_VERSION=${{ needs.build.outputs.kernel_version }}
           mcopy -i boot-partition.img p:/config.txt .
-          grep -q '^kernel=vmlinuz-${{ steps.kernel_info.outputs.kernel_version }}$' config.txt || echo "kernel=vmlinuz-${{ steps.kernel_info.outputs.kernel_version }}" >> config.txt
+          grep -q "^kernel=vmlinuz-${KERNEL_VERSION}$" config.txt || echo "kernel=vmlinuz-${KERNEL_VERSION}" >> config.txt
           mcopy -o -i boot-partition.img config.txt p:/
 
       - name: Inject patched boot partition back into main image
@@ -151,4 +155,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ubuntu-rpi-patched.img
-          path: ./image/ubuntu-22.04.2-raspi-${{ steps.kernel_info.outputs.kernel_version }}.img
+          path: ./image/ubuntu-22.04.2-raspi-${{ needs.build.outputs.kernel_version }}.img
