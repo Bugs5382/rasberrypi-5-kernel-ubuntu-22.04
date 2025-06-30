@@ -88,7 +88,7 @@ jobs:
           path: ./kernel-build-output
 
       - name: Install mtools
-        run: sudo apt-get update && sudo apt-get install -y mtools
+        run: sudo apt-get update && sudo apt-get install -y mtools fdisk
 
       - name: Get boot partition start sector and size
         id: partition_info
